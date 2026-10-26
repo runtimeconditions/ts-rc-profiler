@@ -1,9 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 
 import { findPackage, isBinding, packageName, type Binding, type Catalog, type RootBinding, type TypeEntry, type TypeRef } from "./bindings.js";
 import { fail } from "./errors.js";
+import { readLimited } from "./read.js";
 import type { Json, JsonObject } from "./schema.js";
 
 export interface Extraction {
@@ -89,7 +90,7 @@ export class Extractor {
   private source(path: string): Source {
     let source = this.sources.get(path);
     if (!source) {
-      const file = ts.createSourceFile(path, readFileSync(path, "utf-8"), ts.ScriptTarget.ES2022, true);
+      const file = ts.createSourceFile(path, readLimited(path, "extract").toString("utf-8"), ts.ScriptTarget.ES2022, true);
       const imports = new Map<string, Imported>();
       for (const statement of file.statements) {
         if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.importClause) {

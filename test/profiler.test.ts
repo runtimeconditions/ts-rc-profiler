@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -204,4 +204,16 @@ test("every fixture workload has an expectation or a rejection", () => {
   const known = new Set(["cache", "api", "boundary", ...REJECTED.map(([name]) => name)]);
   assert.deepEqual(readdirSync(join(FIXTURES, "workloads")).filter((name) => !known.has(name)), []);
   assert.ok(existsSync(join(FIXTURES, ENV, "package.json")));
+});
+
+test("an oversized input is rejected before it is read into memory", () => {
+  const { root, project } = workspace("cache");
+  try {
+    truncateSync(join(root, COMMON, "runtimeconditions/runtimeconditions.binding-model.yaml"), 64 * 1024 * 1024 + 1);
+    const result = generate(project);
+    assert.equal(result.code, 1);
+    assert.match(result.err, /error: bindings: .*binding-model\.yaml: file exceeds the 67108864 byte size limit/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

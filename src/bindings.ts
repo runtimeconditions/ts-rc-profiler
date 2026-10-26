@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 
 import { fail } from "./errors.js";
+import { readLimited } from "./read.js";
 import { compile, CORE_SCHEMA_ID, CORE_SCHEMA_SEMANTIC_SHA256, CORE_SCHEMA_VERSION, describeErrors, loadSchema, type JsonObject } from "./schema.js";
 
 export interface TypeEntry {
@@ -58,7 +59,7 @@ function yamlFile(directory: string, relative: string, stage = "bindings"): any 
   if (!existsSync(path)) {
     fail(stage, `${relative} is missing`, directory);
   }
-  return parse(readFileSync(path, "utf-8"));
+  return parse(readLimited(path, stage).toString("utf-8"));
 }
 
 export function packageName(specifier: string): string {
@@ -84,7 +85,7 @@ export function isBinding(directory: string): boolean {
 
 export function loadBinding(directory: string): Binding {
   const stage = "bindings";
-  const pkg = JSON.parse(readFileSync(join(directory, "package.json"), "utf-8"));
+  const pkg = JSON.parse(readLimited(join(directory, "package.json"), stage).toString("utf-8"));
   const where = `${pkg.name}@${pkg.version}`;
   const listing = yamlFile(directory, "runtimeconditions.file-manifest.yaml");
   const files: Record<string, string> = listing?.files ?? {};
@@ -98,7 +99,7 @@ export function loadBinding(directory: string): Binding {
     if (!existsSync(path)) {
       continue;
     }
-    if (sha256(readFileSync(path)) !== digest) {
+    if (sha256(readLimited(path, stage)) !== digest) {
       fail(stage, `${relative} differs from its file manifest digest`, where);
     }
   }

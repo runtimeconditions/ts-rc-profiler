@@ -49,6 +49,9 @@ of generated classes, plain object literals where a generated class is expected,
 recognized declaration depends on, such as a function call or `process.env`, fails with
 its source location.
 
+Every file the profiler reads (workload sources, binding resources, `package.json`) is
+limited to 64 MiB and fails with a clear error beyond that.
+
 ## Verify bindings and generate a profile
 
 ```sh
