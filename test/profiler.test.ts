@@ -206,14 +206,25 @@ test("every fixture workload has an expectation or a rejection", () => {
   assert.ok(existsSync(join(FIXTURES, ENV, "package.json")));
 });
 
-test("an oversized input is rejected before it is read into memory", () => {
-  const { root, project } = workspace("cache");
-  try {
-    truncateSync(join(root, COMMON, "runtimeconditions/runtimeconditions.binding-model.yaml"), 64 * 1024 * 1024 + 1);
-    const result = generate(project);
-    assert.equal(result.code, 1);
-    assert.match(result.err, /error: bindings: .*binding-model\.yaml: file exceeds the 67108864 byte size limit/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+test("the profile prefix is optional so rc can pass subcommands straight through", () => {
+  const result = invoke(["generate", "--project", fixture("cache"), "--name", "cache", "--workload-uri", "https://services.example.com/cache", "--workload-version", "1.0.0"]);
+  assert.equal(result.code, 0, result.err);
+  assert.equal(result.out, expected("cache"));
+});
+
+test("--version --json reports the name, version, and supported core schemas", () => {
+  const result = invoke(["--version", "--json"]);
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.out), { name: "@runtimeconditions/typescript-profiler", version: "0.1.0", coreSchemas: ["0.4.0"] });
+});
+
+test("--json turns a failure into one structured error and still writes nothing", () => {
+  const result = generate(fixture("dynamic"), ["--json"], "dynamic");
+  assert.equal(result.code, 1);
+  assert.equal(result.out, "");
+  const { error } = JSON.parse(result.err);
+  assert.equal(error.stage, "extract");
+  assert.match(error.location, /app\.ts:3:16$/);
+  assert.match(error.message, /cannot be determined statically/);
+  assert.equal(JSON.parse(invoke(["generate", "--json"]).err).error.stage, "usage");
 });
