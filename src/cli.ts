@@ -6,8 +6,8 @@ import { ProfilerError } from "./errors.js";
 import { Extractor, projectFiles } from "./extract.js";
 import { buildProfile, profileYaml } from "./profile.js";
 
-const USAGE = `usage: runtimeconditions-typescript-profiler profile verify-bindings --project DIR [--json]
-       runtimeconditions-typescript-profiler profile generate --project DIR --name NAME --workload-uri URI [--workload-version VERSION] [--out FILE]
+const USAGE = `usage: runtimeconditions-typescript-profiler [profile] verify-bindings --project DIR [--json]
+       runtimeconditions-typescript-profiler [profile] generate --project DIR --name NAME --workload-uri URI [--workload-version VERSION] [--out FILE]
        runtimeconditions-typescript-profiler --version`;
 
 export interface Streams {
@@ -55,11 +55,11 @@ export function run(args: string[], streams: Streams): number {
       streams.out(`${pkg.version}\n`);
       return 0;
     }
-    if (args[0] !== "profile" || !args[1] || !(args[1] in OPTIONS)) {
+    const [command, ...rest] = args[0] === "profile" ? args.slice(1) : args;
+    if (!command || !(command in OPTIONS)) {
       throw new ProfilerError("usage", USAGE);
     }
-    const command = args[1];
-    const values = parse(args.slice(2), OPTIONS[command]!);
+    const values = parse(rest, OPTIONS[command]!);
     const project = resolve(required(values, "--project"));
     const identity =
       command === "generate"

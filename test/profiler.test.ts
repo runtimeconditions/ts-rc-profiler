@@ -205,3 +205,9 @@ test("every fixture workload has an expectation or a rejection", () => {
   assert.deepEqual(readdirSync(join(FIXTURES, "workloads")).filter((name) => !known.has(name)), []);
   assert.ok(existsSync(join(FIXTURES, ENV, "package.json")));
 });
+
+test("the profile prefix is optional so rc can pass subcommands straight through", () => {
+  const result = invoke(["generate", "--project", fixture("cache"), "--name", "cache", "--workload-uri", "https://services.example.com/cache", "--workload-version", "1.0.0"]);
+  assert.equal(result.code, 0, result.err);
+  assert.equal(result.out, expected("cache"));
+});

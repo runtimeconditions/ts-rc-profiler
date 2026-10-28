@@ -68,6 +68,10 @@ to standard output when `--out` is omitted, and writes the file atomically, only
 whole profile validates. An error exits with status 1 and leaves any existing output
 untouched.
 
+The `profile` word is optional. The same commands run as `rc profile typescript verify-bindings` and
+`rc profile typescript generate` when `rc` finds this package on `PATH` as `rc-profiler-typescript` or
+`runtimeconditions-typescript-profiler`.
+
 ## What is verified
 
 For every binding package the profiler reads, it checks:
