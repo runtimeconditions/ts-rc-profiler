@@ -72,6 +72,9 @@ The `profile` word is optional. The same commands run as `rc profile typescript 
 `rc profile typescript generate` when `rc` finds this package on `PATH` as `rc-profiler-typescript` or
 `runtimeconditions-typescript-profiler`.
 
+`--version --json` prints `{"name","version","coreSchemas"}`, which `rc` uses to check that the profiler supports the
+core schema it targets. With `--json`, a failure prints one `{"error":{"stage","message","location"}}` object to standard error.
+
 ## What is verified
 
 For every binding package the profiler reads, it checks:

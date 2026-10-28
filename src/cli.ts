@@ -2,13 +2,14 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import { Catalog, type Binding } from "./bindings.js";
+import { CORE_SCHEMA_VERSION } from "./schema.js";
 import { ProfilerError } from "./errors.js";
 import { Extractor, projectFiles } from "./extract.js";
 import { buildProfile, profileYaml } from "./profile.js";
 
 const USAGE = `usage: runtimeconditions-typescript-profiler [profile] verify-bindings --project DIR [--json]
-       runtimeconditions-typescript-profiler [profile] generate --project DIR --name NAME --workload-uri URI [--workload-version VERSION] [--out FILE]
-       runtimeconditions-typescript-profiler --version`;
+       runtimeconditions-typescript-profiler [profile] generate --project DIR --name NAME --workload-uri URI [--workload-version VERSION] [--out FILE] [--json]
+       runtimeconditions-typescript-profiler --version [--json]`;
 
 export interface Streams {
   out: (text: string) => void;
@@ -17,7 +18,7 @@ export interface Streams {
 
 const OPTIONS: Record<string, string[]> = {
   "verify-bindings": ["--project", "--json"],
-  generate: ["--project", "--name", "--workload-uri", "--workload-version", "--out"],
+  generate: ["--project", "--name", "--workload-uri", "--workload-version", "--out", "--json"],
 };
 
 function parse(args: string[], allowed: string[]): Map<string, string> {
@@ -49,10 +50,11 @@ function required(values: Map<string, string>, flag: string): string {
 }
 
 export function run(args: string[], streams: Streams): number {
+  const json = args.includes("--json");
   try {
     if (args[0] === "--version") {
       const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf-8"));
-      streams.out(`${pkg.version}\n`);
+      streams.out(json ? `${JSON.stringify({ name: pkg.name, version: pkg.version, coreSchemas: [CORE_SCHEMA_VERSION] })}\n` : `${pkg.version}\n`);
       return 0;
     }
     const [command, ...rest] = args[0] === "profile" ? args.slice(1) : args;
@@ -99,7 +101,12 @@ export function run(args: string[], streams: Streams): number {
     }
     return 0;
   } catch (error) {
-    streams.err(`${error instanceof ProfilerError ? error.toString() : `error: ${(error as Error).message}`}\n`);
+    const known = error instanceof ProfilerError;
+    streams.err(
+      json
+        ? `${JSON.stringify({ error: { stage: known ? error.stage : "internal", message: (error as Error).message, ...(known && error.location ? { location: error.location } : {}) } })}\n`
+        : `${known ? error.toString() : `error: ${(error as Error).message}`}\n`,
+    );
     return 1;
   }
 }
