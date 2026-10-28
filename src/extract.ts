@@ -1,5 +1,5 @@
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import ts from "typescript";
 
 import { findPackage, isBinding, packageName, type Binding, type Catalog, type RootBinding, type TypeEntry, type TypeRef } from "./bindings.js";
@@ -38,20 +38,44 @@ const SKIPPED = new Set(["node_modules", ".git", "dist", "build", "coverage"]);
 const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
 
 export function projectFiles(root: string): string[] {
+  const configPath = join(root, "tsconfig.json");
+  return (existsSync(configPath) ? configuredFiles(root, configPath) : scannedFiles(root)).sort();
+}
+
+function scannedFiles(root: string): string[] {
   const found: string[] = [];
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
       if (entry.isDirectory()) {
         if (!SKIPPED.has(entry.name) && !entry.name.startsWith(".")) {
           walk(join(directory, entry.name));
         }
-      } else if (EXTENSIONS.some((extension) => entry.name.endsWith(extension)) && !entry.name.endsWith(".d.ts")) {
+      } else if (isSource(entry.name)) {
         found.push(join(directory, entry.name));
       }
     }
   };
   walk(root);
-  return found.sort();
+  return found;
+}
+
+// The files tsconfig.json selects through files, include, exclude and extends, minus anything
+// reached through a symbolic link.
+function configuredFiles(root: string, configPath: string): string[] {
+  const read = ts.readConfigFile(configPath, (path) => readLimited(path, "extract").toString("utf-8"));
+  if (read.error) {
+    fail("extract", ts.flattenDiagnosticMessageText(read.error.messageText, "\n"), "tsconfig.json");
+  }
+  const realRoot = realpathSync(root);
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root, undefined, configPath);
+  return parsed.fileNames.filter((path) => isSource(path) && realpathSync(path) === join(realRoot, relative(root, path)));
+}
+
+function isSource(name: string): boolean {
+  return EXTENSIONS.some((extension) => name.endsWith(extension)) && !name.endsWith(".d.ts");
 }
 
 export class Extractor {
@@ -304,7 +328,12 @@ export class Extractor {
     const base = resolve(dirname(source.path), specifier);
     const stem = base.replace(/\.(m|c)?js$/, "");
     const candidates = [base, ...EXTENSIONS.map((extension) => stem + extension), ...EXTENSIONS.map((extension) => join(base, `index${extension}`))];
-    return candidates.find((candidate) => existsSync(candidate) && /\.(m|c)?tsx?$/.test(candidate));
+    return candidates.find((candidate) => existsSync(candidate) && /\.(m|c)?tsx?$/.test(candidate) && this.inside(candidate));
+  }
+
+  private inside(path: string): boolean {
+    const offset = relative(realpathSync(this.root), realpathSync(path));
+    return offset !== "" && !offset.startsWith("..") && !isAbsolute(offset);
   }
 
   private entry(expected: Expected | undefined): TypeEntry | undefined {

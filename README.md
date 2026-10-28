@@ -88,7 +88,7 @@ For every binding package the profiler reads, it checks:
 - the manifest and the binding model match the bundled schemas, and the manifest, the
   model, the extension definition, and `package.json` agree on identity, version, model
   digest, and root extension;
-- the model was generated against the core profile schema this profiler bundles, by
+- the model was generated against a core profile schema this profiler accepts, by
   identity and semantic digest;
 - every extension the model depends on is provided by an installed binding package with
   the same semantic digest.
@@ -99,8 +99,14 @@ directly contribute declarations.
 
 ## Limits
 
-- Only core profile schema 0.4.0 is bundled. Packages generated against another version are
-  rejected with the versions named.
+- Profiles are validated against core profile schema 0.4.0. Bindings generated against 0.4.0 are
+  accepted, and so are the published 0.1.0 bindings generated against 0.2.0, by exact identity and
+  digest. Any other version is rejected with the versions named.
+- Symbolic links are never followed, and an import that resolves outside the project directory
+  is not read. Without a `tsconfig.json` every `.ts`, `.tsx`, `.mts`, and `.cts` file outside
+  `node_modules`, `dist`, `build`, `coverage`, and dot directories is read; with one at the project
+  root, its `files`, `include`, `exclude`, and `extends` choose the files, and `.d.ts` files are skipped.
+  `references`, path aliases, and imports from other packages are not followed.
 - Vocabulary ownership rules are not checked beyond what the extension schemas express.
 - Extraction is syntactic. It does not use the type checker, so type aliases, generics, and
   re-exported bindings are not followed.

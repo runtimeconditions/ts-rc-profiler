@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -227,4 +227,92 @@ test("--json turns a failure into one structured error and still writes nothing"
   assert.match(error.location, /app\.ts:3:16$/);
   assert.match(error.message, /cannot be determined statically/);
   assert.equal(JSON.parse(invoke(["generate", "--json"]).err).error.stage, "usage");
+});
+
+const CORE_0_4_0 = /(id: https:\/\/runtimeconditions\.io\/schemas\/profile\/)0\.4\.0(\/[^\n]*\n\s+version: )0\.4\.0(\n\s+semanticSha256: )[0-9a-f]{64}/;
+
+function downgrade(root: string, digest: string): void {
+  for (const directory of [COMMON, ENV]) {
+    rewrite(root, directory, "runtimeconditions/runtimeconditions.binding-model.yaml", (text) => text.replace(CORE_0_4_0, `$10.2.0$20.2.0$3${digest}`));
+  }
+}
+
+test("bindings generated against the approved core 0.2.0 input are accepted", () => {
+  const { root, project } = workspace("cache");
+  try {
+    downgrade(root, "a090a8016d045f9c3fa872a67f8df293b77ca2809a1bea5ae9fa31a27a06109a");
+    const result = generate(project, ["--workload-version", "1.0.0"], "cache");
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.out, expected("cache"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("core 0.2.0 with any other digest is rejected", () => {
+  const { root, project } = workspace("cache");
+  try {
+    downgrade(root, "b".repeat(64));
+    const result = generate(project);
+    assert.equal(result.code, 1);
+    assert.match(result.err, /generated against core profile schema 0\.2\.0/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function linked(target: string, path: string, type: "file" | "dir"): boolean {
+  try {
+    symlinkSync(target, path, type);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("symbolic links are never followed while scanning the project", (context) => {
+  const { root, project } = workspace("cache");
+  try {
+    writeFileSync(join(root, "outside.ts"), 'import { cache } from "@runtimeconditions/common-integrations";\nexport const leaked = cache();\n');
+    if (!linked(".", join(project, "src/loop"), "dir") || !linked(join(root, "outside.ts"), join(project, "src/leaked.ts"), "file")) {
+      return context.skip("symbolic links are not available");
+    }
+    const result = generate(project, ["--workload-version", "1.0.0"], "cache");
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.out, expected("cache"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an import that leaves the project directory is not followed", () => {
+  const { root, project } = workspace("cache");
+  try {
+    writeFileSync(join(root, "engine.ts"), 'import { KeyValueEngine } from "@runtimeconditions/common-integrations";\nexport const engine = KeyValueEngine.Redis;\n');
+    const path = join(project, "src/config.ts");
+    writeFileSync(path, readFileSync(path, "utf-8").replace('KeyValueEngine.Redis', '1').concat('export { engine as outside } from "../../engine.js";\n'));
+    writeFileSync(join(project, "src/app.ts"), readFileSync(join(project, "src/app.ts"), "utf-8").replace('"./config.js"', '"../../engine.js"'));
+    const result = generate(project);
+    assert.equal(result.code, 1);
+    assert.match(result.err, /error: extract: src\/app\.ts:\d+:\d+: .*statically/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("tsconfig.json decides which files are profiled", () => {
+  const { root, project } = workspace("cache");
+  try {
+    mkdirSync(join(project, "src/ignored"));
+    writeFileSync(join(project, "src/ignored/extra.ts"), 'import { cache } from "@runtimeconditions/common-integrations";\nexport const bad = cache(process.env.X);\n');
+    assert.equal(generate(project).code, 1);
+    writeFileSync(join(project, "tsconfig.json"), JSON.stringify({ include: ["src"], exclude: ["src/ignored"] }));
+    const result = generate(project, ["--workload-version", "1.0.0"], "cache");
+    assert.equal(result.code, 0, result.err);
+    assert.equal(result.out, expected("cache"));
+    writeFileSync(join(project, "tsconfig.json"), "{ not json");
+    assert.match(generate(project).err, /error: extract: tsconfig\.json: /);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
