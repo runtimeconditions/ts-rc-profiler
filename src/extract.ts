@@ -65,7 +65,7 @@ function scannedFiles(root: string): string[] {
 // The files tsconfig.json selects through files, include, exclude and extends, minus anything
 // reached through a symbolic link.
 function configuredFiles(root: string, configPath: string): string[] {
-  const read = ts.readConfigFile(configPath, (path) => readLimited(path, "extract").toString("utf-8"));
+  const read = ts.readConfigFile(configPath.split(sep).join("/"), (path) => readLimited(path, "extract").toString("utf-8"));
   if (read.error) {
     fail("extract", ts.flattenDiagnosticMessageText(read.error.messageText, "\n"), "tsconfig.json");
   }
