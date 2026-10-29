@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 import { findPackage, isBinding, packageName, type Binding, type Catalog, type RootBinding, type TypeEntry, type TypeRef } from "./bindings.js";
@@ -70,8 +70,8 @@ function configuredFiles(root: string, configPath: string): string[] {
     fail("extract", ts.flattenDiagnosticMessageText(read.error.messageText, "\n"), "tsconfig.json");
   }
   const realRoot = realpathSync(root);
-  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root, undefined, configPath);
-  return parsed.fileNames.filter((path) => isSource(path) && realpathSync(path) === join(realRoot, relative(root, path)));
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, root.split(sep).join("/"), undefined, configPath.split(sep).join("/"));
+  return parsed.fileNames.map(normalize).filter((path) => isSource(path) && realpathSync(path) === join(realRoot, relative(root, path)));
 }
 
 function isSource(name: string): boolean {
@@ -108,7 +108,7 @@ export class Extractor {
 
   private where(node: ts.Node, source: Source): string {
     const { line, character } = source.file.getLineAndCharacterOfPosition(node.getStart(source.file));
-    return `${relative(this.root, source.path)}:${line + 1}:${character + 1}`;
+    return `${relative(this.root, source.path).split(sep).join("/")}:${line + 1}:${character + 1}`;
   }
 
   private source(path: string): Source {
