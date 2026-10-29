@@ -62,6 +62,14 @@ function yamlFile(directory: string, relative: string, stage = "bindings"): any 
   return parse(readLimited(path, stage).toString("utf-8"));
 }
 
+// The published 0.1.0 bindings were normalized against core 0.2.0, whose profile structure 0.4.0 keeps.
+// Only that exact id, version and digest is accepted; output is still validated with 0.4.0.
+const CORE_SCHEMA_0_2_0 = [
+  "https://runtimeconditions.io/schemas/profile/0.2.0/runtimeconditions.profile.schema.yaml",
+  "0.2.0",
+  "a090a8016d045f9c3fa872a67f8df293b77ca2809a1bea5ae9fa31a27a06109a",
+] as const;
+
 export function packageName(specifier: string): string {
   const parts = specifier.split("/");
   return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : (parts[0] ?? specifier);
@@ -116,7 +124,8 @@ export function loadBinding(directory: string): Binding {
     }
   }
   const core = model.coreProfileSchema;
-  if (core?.id !== CORE_SCHEMA_ID || core?.version !== CORE_SCHEMA_VERSION || core?.semanticSha256 !== CORE_SCHEMA_SEMANTIC_SHA256) {
+  const identity = (id: string, version: string, digest: string) => core?.id === id && core?.version === version && core?.semanticSha256 === digest;
+  if (!identity(CORE_SCHEMA_ID, CORE_SCHEMA_VERSION, CORE_SCHEMA_SEMANTIC_SHA256) && !identity(...CORE_SCHEMA_0_2_0)) {
     fail(stage, `the package was generated against core profile schema ${core?.version} (${core?.semanticSha256}); this profiler bundles ${CORE_SCHEMA_VERSION} (${CORE_SCHEMA_SEMANTIC_SHA256})`, where);
   }
   if (manifest.package.language !== "typescript") {
