@@ -47,6 +47,8 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - name: Publish the package and tag the release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           version=$(scripts/next-version.sh)
           if [ -z "$version" ]; then
@@ -55,7 +57,7 @@ jobs:
           fi
           name=$(npm pkg get name | tr -d '"')
           if ! npm view "$name" name >/dev/null 2>&1; then
-            echo "::notice::$name is not on npm yet; publish the first version by hand, then configure trusted publishing"
+            echo "::notice::$name is not on npm yet; publish the first version by hand"
             exit 0
           fi
           if ! npm view "$name@$version" version >/dev/null 2>&1; then
