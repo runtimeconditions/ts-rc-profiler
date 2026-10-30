@@ -32,9 +32,9 @@ function expected(name: string): string {
   return readFileSync(join(FIXTURES, "expected", `${name}.profile.yaml`), "utf-8");
 }
 
-function workspace(workload: string): { root: string; project: string } {
+function workspace(workload: string, modules = "node_modules"): { root: string; project: string } {
   const root = mkdtempSync(join(tmpdir(), "typescript-profiler-"));
-  cpSync(join(FIXTURES, "node_modules"), join(root, "node_modules"), { recursive: true });
+  cpSync(join(FIXTURES, modules), join(root, "node_modules"), { recursive: true });
   const project = join(root, "project");
   cpSync(fixture(workload), project, { recursive: true });
   return { root, project };
@@ -63,6 +63,19 @@ test("the api workload, with a template path, a map, and an inline object, becom
   assert.equal(result.code, 0, result.err);
   assert.equal(result.out, expected("api"));
 });
+
+for (const [name, version] of [["cache", ["--workload-version", "1.0.0"]], ["api", []]] as const) {
+  test(`the ${name} workload profiles the same against the bindings the emitter generated for the catalog`, () => {
+    const { root, project } = workspace(name, "catalog/node_modules");
+    try {
+      const result = generate(project, [...version], name);
+      assert.equal(result.code, 0, result.err);
+      assert.equal(result.out, expected(name));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
 
 test("a profile is identical on every run", () => {
   assert.equal(generate(fixture("cache")).out, generate(fixture("cache")).out);

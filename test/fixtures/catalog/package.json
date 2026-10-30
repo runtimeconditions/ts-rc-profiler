@@ -1,0 +1,8 @@
+{
+  "name": "catalog-fixtures",
+  "private": true,
+  "dependencies": {
+    "@runtimeconditions/common-integrations": "https://registry.npmjs.org/@runtimeconditions/common-integrations/-/common-integrations-0.1.0.tgz",
+    "@runtimeconditions/env-configuration": "https://registry.npmjs.org/@runtimeconditions/env-configuration/-/env-configuration-0.1.0.tgz"
+  }
+}

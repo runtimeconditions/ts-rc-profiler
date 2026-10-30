@@ -41,7 +41,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "tsc -p tsconfig.json && node --test dist/test/*.test.js",
+    "test": "npm ci --prefix test/fixtures/catalog --ignore-scripts --no-audit --no-fund && tsc -p tsconfig.json && node --test dist/test/*.test.js",
     "prepack": "npm run build"
   },
   "dependencies": {
